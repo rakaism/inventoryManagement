@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Inventory Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto;
+        margin: 20px;
+      }
+      .row {
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+      }
+      .card {
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        padding: 16px;
+        flex: 1 1 320px;
+      }
+      .controls {
+        margin-bottom: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Inventory Dashboard</h2>
+    <div class="controls">
+      From: <input type="date" id="from" /> To: <input type="date" id="to" />
+      <button id="btnFilter">Apply</button>
+    </div>
+
+    <div class="row">
+      <div class="card">
+        <h4>Sales per month</h4>
+        <canvas id="chartMonth"></canvas>
+      </div>
+      <div class="card">
+        <h4>Sales per category</h4>
+        <canvas id="chartCategory"></canvas>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="card">
+        <h4>Top 10 Products (by sales)</h4>
+        <canvas id="chartTop"></canvas>
+      </div>
+      <div class="card">
+        <h4>Low stock</h4>
+        <ul id="lowStockList"></ul>
+      </div>
+    </div>
+
+    <script>
+      const API = (p) => `http://localhost:3000${p}`;
+
+      async function fetchJSON(path) {
+        const r = await fetch(API(path));
+        return r.json();
+      }
+
+      let chartMonth, chartCategory, chartTop;
+
+      function renderMonth(data) {
+        const labels = new Array(12).fill(0).map((_, i) => i + 1);
+        const map = new Map(data.map((r) => [r.month, Number(r.total_sales)]));
+        const values = labels.map((l) => map.get(l) || 0);
+        if (chartMonth) chartMonth.destroy();
+        chartMonth = new Chart(document.getElementById("chartMonth"), {
+          type: "bar",
+          data: {
+            labels: labels.map((m) => `M${m}`),
+            datasets: [{ label: "Sales", data: values }],
+          },
+        });
+      }
+
+      function renderCategory(data) {
+        const labels = data.map((r) => r.category);
+        const values = data.map((r) => Number(r.total_sales));
+        if (chartCategory) chartCategory.destroy();
+        chartCategory = new Chart(document.getElementById("chartCategory"), {
+          type: "pie",
+          data: { labels, datasets: [{ data: values }] },
+        });
+      }
+
+      function renderTop(data) {
+        const labels = data.map((r) => r.name);
+        const values = data.map((r) => Number(r.total_sales));
+        if (chartTop) chartTop.destroy();
+        chartTop = new Chart(document.getElementById("chartTop"), {
+          type: "bar",
+          data: { labels, datasets: [{ label: "Sales", data: values }] },
+          options: { indexAxis: "y" },
+        });
+      }
+
+      async function refresh() {
+        const year = new Date().getFullYear();
+        const month = await fetchJSON(`/reports/sales-per-month?year=${year}`);
+        renderMonth(month.rows || month);
+        const from = document.getElementById("from").value;
+        const to = document.getElementById("to").value;
+        const catPath = `/reports/sales-per-category${
+          from || to ? `?from=${from || ""}&to=${to || ""}` : ""
+        }`;
+        const cat = await fetchJSON(catPath);
+        renderCategory(cat.rows || cat);
+        const top = await fetchJSON("/reports/top-products?limit=10");
+        renderTop((top.rows || top).map((x) => ({ ...x, name: x.name })));
+
+        const low = await fetchJSON("/reports/low-stock");
+        const ul = document.getElementById("lowStockList");
+        ul.innerHTML = "";
+        (low.items || low).forEach((it) => {
+          const li = document.createElement("li");
+          li.textContent = `${it.name} - stock: ${it.stock} (threshold ${it.low_stock_threshold})`;
+          ul.appendChild(li);
+        });
+      }
+
+      document.getElementById("btnFilter").addEventListener("click", refresh);
+      refresh();
+    </script>
+  </body>
+</html>
