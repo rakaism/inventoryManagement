@@ -237,9 +237,8 @@ export default class InventoryManager extends EventEmitter {
   }
 
   async getTopProducts(limit = 10) {
-    // Ensure limit is a valid number and convert to integer
     const validLimit = parseInt(limit, 10);
-    
+
     const [rows] = await this.db.execute(
       `SELECT p.id, p.name, SUM(t.total) as total_sales
        FROM transactions t JOIN products p ON t.product_id = p.id

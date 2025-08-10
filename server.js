@@ -57,7 +57,6 @@ const server = http.createServer(async (req, res) => {
   const path = parsed.pathname;
   const method = req.method;
 
-  // Handle CORS preflight requests
   if (method === "OPTIONS") {
     sendJSON(res, 200, {});
     return;
